@@ -36,7 +36,7 @@ internal enum VisibilityFlags : uint {
 }
 
 [Flags]
-internal enum LinkFlags : uint {
+internal enum LinkKind : uint {
   None = 0b000,
   Prj  = 0b010,
   Sys  = 0b100,
@@ -46,7 +46,9 @@ internal record Include(VisibilityFlags flags, string[] dirs);
 
 internal record CFlags(VisibilityFlags flags, string[] values);
 
-internal record Link(VisibilityFlags visibility, LinkFlags flags, string[] libs);
+internal record Link(VisibilityFlags visibility, LinkKind flags, string[] libs);
+
+internal record LinkFlags(VisibilityFlags visibility, string[] flags);
 
 internal record LinkDir(VisibilityFlags visibility, string[] dirs);
 
@@ -61,6 +63,7 @@ internal class ProjectM {
   public              List<Link>         link           = [];
   public              List<LinkDir>      link_dirs      = [];
   public              List<CFlags>       cflags         = [];
+  public              List<LinkFlags>    link_flags     = [];
   public              List<GenerateEnum> generate_enums = [];
 }
 
@@ -175,7 +178,7 @@ internal class LinkAction(AstNode[] args) : IProjectMAction {
       return;
     }
     var libs       = args.unpack_as_string_array_skip_flags();
-    var flags      = args.parse_flags<LinkFlags>();
+    var flags      = args.parse_flags<LinkKind>();
     var visibility = args.parse_flags<VisibilityFlags>();
     model.link.Add(new Link(visibility, flags, libs));
   }
@@ -208,6 +211,20 @@ internal class CFlagsAction(AstNode[] args) : IProjectMAction {
     var values = args.unpack_as_string_array_skip_flags();
     var flags  = args.parse_flags<VisibilityFlags>();
     model.cflags.Add(new CFlags(flags, values));
+  }
+}
+
+internal class LinkFlagsAction(AstNode[] args) : IProjectMAction {
+  public void execute(ProjectM model) {
+    if (!args.check_os_flags()) {
+      return;
+    }
+    if (!args.check_build_config(model.depo.build_config)) {
+      return;
+    }
+    var values = args.unpack_as_string_array_skip_flags();
+    var flags  = args.parse_flags<VisibilityFlags>();
+    model.link_flags.Add(new LinkFlags(flags, values));
   }
 }
 
@@ -253,6 +270,7 @@ internal class ProjectAction : IDepoMAction {
         case "link":      _actions.Add(new LinkAction(node.children)); break;
         case "link-dirs": _actions.Add(new LinkDirAction(node.children)); break;
         case "flags":     _actions.Add(new CFlagsAction(node.children)); break;
+        case "lflags":    _actions.Add(new LinkFlagsAction(node.children)); break;
         case "gen-enums": _actions.Add(new GenerateEnumAction(node.children)); break;
         default:          throw new Exception($"Unexpected node for project: {node.value}");
       }

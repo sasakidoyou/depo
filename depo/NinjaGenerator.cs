@@ -267,7 +267,7 @@ internal class NinjaGenerator : IDisposable {
     }
 
     foreach (var link in proj.link) {
-      if ((link.flags & LinkFlags.Prj) == 0) {
+      if ((link.flags & LinkKind.Prj) == 0) {
         continue; // do not care
       }
       foreach (var lib in projects_with_names(link.libs)) {
@@ -298,7 +298,7 @@ internal class NinjaGenerator : IDisposable {
     }
 
     foreach (var link in proj.link) {
-      if ((link.flags & LinkFlags.Prj) == 0) {
+      if ((link.flags & LinkKind.Prj) == 0) {
         continue; // do not care
       }
       foreach (var lib in projects_with_names(link.libs)) {
@@ -377,13 +377,28 @@ internal class NinjaGenerator : IDisposable {
       }
     }
 
+    if (proj.kind is Kind.Dll or Kind.Exe) {
+      foreach (var link in proj.link_flags) {
+        bool is_shared = link.visibility != VisibilityFlags.None;
+        if (!is_current_project && !is_shared) {
+          continue;
+        }
+        if (is_current_project && (link.visibility & VisibilityFlags.Iface) != 0) {
+          continue;
+        }
+        foreach (var flag in link.flags) {
+          _link_flags.Add(flag);
+        }
+      }
+    }
+
     foreach (var link in proj.link) {
       bool is_shared = link.visibility != VisibilityFlags.None;
       if (!is_current_project && !is_shared) {
         continue;
       }
 
-      if ((link.flags & LinkFlags.Prj) != 0) {
+      if ((link.flags & LinkKind.Prj) != 0) {
         foreach (var lib in projects_with_names(link.libs)) {
           if (lib.kind is Kind.Lib or Kind.Dll) {
             collect_link_flags(lib);
@@ -405,7 +420,7 @@ internal class NinjaGenerator : IDisposable {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
           prefix = "";
         }
-        if ((link.flags & LinkFlags.Sys) != 0) {
+        if ((link.flags & LinkKind.Sys) != 0) {
           _link_libs.Add(prefix + lib);
         } else {
           var path = Path.Join(proj.depo.dir, lib);
