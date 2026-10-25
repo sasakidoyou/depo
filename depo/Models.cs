@@ -29,6 +29,12 @@ internal enum OS : uint {
 }
 
 [Flags]
+internal enum DependencyFlags : uint {
+  None = 0b000,
+  Auth = 0b001,
+}
+
+[Flags]
 internal enum VisibilityFlags : uint {
   None  = 0b000,
   Pub   = 0b001,
@@ -71,6 +77,7 @@ internal class DependencyM {
   public string name;
   public string url;
   public string branch;
+  public DependencyFlags flags;
 }
 
 internal class CustomCommandM {
@@ -325,10 +332,11 @@ internal class DepsAction : IDepoMAction {
 internal abstract class DepActionBase(AstNode[] ast_args) : IDepoMAction {
   public void execute(DepoM model) {
     var args = ast_args.unpack_as_string_array_skip_flags();
+    var flags = ast_args.parse_flags<DependencyFlags>();
     if (args.Length != 2 && args.Length != 3) {
       throw new Exception("Bad dependency arguments");
     }
-    var dep = new DependencyM { name = args[0], url = args[1] };
+    var dep = new DependencyM { name = args[0], url = args[1], flags = flags };
     if (args.Length == 3) {
       dep.branch = args[2];
     }

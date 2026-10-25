@@ -1,5 +1,7 @@
 ﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace depo;
 
@@ -34,7 +36,8 @@ internal class Dependencies {
     Log.info("--- Archive pull {0}", dependency.name);
     string dir = Path.Join(_deps_dir, dependency.name);
 
-    bool is_same = check_ts_is_same(dir, dependency.url);
+    var use_auth = (dependency.flags & DependencyFlags.Auth) != 0;
+    bool is_same = check_ts_is_same(dir, dependency.url, use_auth);
     if (is_same) {
       Log.debug("No need to fetch");
       return;
@@ -47,13 +50,13 @@ internal class Dependencies {
 
     var archive_path = Path.Join(dir, Path.GetFileName(dependency.url));
     Log.debug("Archive path: {0}", archive_path);
-    download(dependency.url, archive_path);
+    download(dependency.url, archive_path, use_auth);
     unpack_archive(archive_path);
   }
 
-  private static void download(string from, string to) {
+  private static void download(string from, string to, bool use_auth) {
     Log.info("Downloading: {0} -> {1}", from, to);
-    using var client   = new HttpClient();
+    using var client   = build_http_client(use_auth);
     using var response = client.GetAsync(from, HttpCompletionOption.ResponseHeadersRead).Result;
     response.EnsureSuccessStatusCode();
     using var stream = response.Content.ReadAsStream();
@@ -112,14 +115,14 @@ internal class Dependencies {
     return Path.GetFullPath(dir);
   }
 
-  private static bool check_ts_is_same(string dir, string url) {
+  private static bool check_ts_is_same(string dir, string url, bool use_auth) {
     string ts_path = Path.Join(dir, "ts");
     if (!File.Exists(ts_path)) {
       return false;
     }
     string    local_ts = File.ReadAllText(ts_path);
     string    ts_url   = PathLib.replace_ext_full(url, ".ts"); // .tar.xz -> .ts
-    using var cli      = new HttpClient();
+    using var cli      = build_http_client(use_auth);
     using var response = cli.GetAsync(ts_url).Result;
     if (!response.IsSuccessStatusCode) {
       Log.info("TS not found on server! {0}", Path.GetFileNameWithoutExtension(url));
@@ -132,5 +135,15 @@ internal class Dependencies {
     }
     Log.info("Local and remote is same, skip");
     return true;
+  }
+
+  private static HttpClient build_http_client(bool use_auth) {
+    var client = new HttpClient();
+    if (use_auth) {
+      var creds = DepoSettings.get_creds();
+      var auth_token = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{creds.login}:{creds.password}"));
+      client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", auth_token);
+    }
+    return client;
   }
 }

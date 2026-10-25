@@ -11,5 +11,6 @@ namespace depo;
 [JsonSerializable(typeof(DepoM))]
 [JsonSerializable(typeof(MsvcProduct[]))]
 [JsonSerializable(typeof(ProjectM))]
+[JsonSerializable(typeof(DepoCreds))]
 internal partial class TheJsonContext : JsonSerializerContext;
   

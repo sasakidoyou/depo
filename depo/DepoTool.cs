@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace depo;
 
@@ -32,9 +33,12 @@ public static class DepoTool {
   }
 }
 
+public record class DepoCreds(string login, string password);
+
 public static class DepoSettings {
-  public static string config_dir = get_config_dir();
-  public static string msvc_env   = Path.Join(config_dir, "msvc_env");
+  public static string config_dir  = get_config_dir();
+  public static string msvc_env    = Path.Join(config_dir, "msvc_env");
+  public static string creds_path  = Path.Join(config_dir, "creds.json");
 
   private static string get_config_dir() {
     var settings = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -44,5 +48,22 @@ public static class DepoSettings {
       Directory.CreateDirectory(dir);
     }
     return dir;
+  }
+
+  public static DepoCreds get_creds() {
+    try {
+      var creds = JsonSerializer.Deserialize(File.ReadAllText(creds_path), TheJsonContext.Default.DepoCreds);
+      if (string.IsNullOrEmpty(creds.login)) {
+        Log.error("Credentials file empty ({0}), please fill it!", creds_path);
+      }
+      return creds;
+    } catch {
+      var default_creds = new DepoCreds(login: "", password: "");
+      if (!File.Exists(creds_path)) {
+        Log.error("Credentials file does not exists ({0}), creating empty!", creds_path);
+        File.WriteAllText(creds_path, JsonSerializer.Serialize(default_creds, TheJsonContext.Default.DepoCreds));
+      }
+      return default_creds;
+    }
   }
 }
